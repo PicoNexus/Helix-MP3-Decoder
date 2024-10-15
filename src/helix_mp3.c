@@ -2,11 +2,12 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #define HELIX_MP3_MIN(x, y) (((x) < (y)) ? (x) : (y))
 #define HELIX_MP3_SAMPLES_PER_FRAME 2
 
-static int helix_mp3_skip_id3v2_tag(FILE *fd)
+static int helix_mp3_skip_id3v2_tag(helix_mp3_t *mp3)
 {
     const size_t id3v2_frame_header_size = 10;
     const size_t id3v2_frame_offset = 0;
@@ -16,10 +17,10 @@ static int helix_mp3_skip_id3v2_tag(FILE *fd)
     uint8_t frame_buffer[id3v2_frame_header_size];
 
     /* Seek to the beginning of the frame and read frame's header */
-    if (fseek(fd, id3v2_frame_offset, SEEK_SET) != 0) {
+    if (mp3->io->seek(mp3->io->user_data, id3v2_frame_offset) != 0) {
         return -EIO;
     }
-    if (fread(frame_buffer, sizeof(*frame_buffer), id3v2_frame_header_size, fd) != id3v2_frame_header_size) {
+    if (mp3->io->read(mp3->io->user_data, frame_buffer, id3v2_frame_header_size) != id3v2_frame_header_size) {
         return -EIO;
     }
 
@@ -36,7 +37,7 @@ static int helix_mp3_skip_id3v2_tag(FILE *fd)
                                         id3v2_frame_header_size;
 
     /* Skip the tag */
-    if (fseek(fd, id3v2_frame_offset + id3v2_tag_total_size, SEEK_SET) != 0) {
+    if (mp3->io->seek(mp3->io->user_data, id3v2_frame_offset + id3v2_tag_total_size) != 0) {
         return -EIO;
     }
     return id3v2_tag_total_size;
@@ -49,7 +50,7 @@ static size_t helix_mp3_fill_mp3_buffer(helix_mp3_t *mp3)
 
     /* Read new data */
     const size_t bytes_to_read = HELIX_MP3_DATA_CHUNK_SIZE - mp3->mp3_buffer_bytes_left;
-    const size_t bytes_read = fread(&mp3->mp3_buffer[mp3->mp3_buffer_bytes_left], sizeof(*mp3->mp3_buffer), bytes_to_read, mp3->mp3_fd);
+    const size_t bytes_read = mp3->io->read(mp3->io->user_data, &mp3->mp3_buffer[mp3->mp3_buffer_bytes_left], sizeof(*mp3->mp3_buffer) * bytes_to_read);
 
     /* Zero-pad to avoid finding false sync word from old data */
     if (bytes_read < bytes_to_read) {
@@ -114,15 +115,32 @@ static size_t helix_mp3_decode_next_frame(helix_mp3_t *mp3)
     return pcm_samples_read;
 }
 
-int helix_mp3_init(helix_mp3_t *mp3, const char *path)
+static int helix_mp3_seek(void *user_data, int offset)
+{
+    return fseek((FILE *)user_data, offset, SEEK_SET);
+}
+
+static size_t helix_mp3_read(void *user_data, void *buffer, size_t size)
+{
+    return fread(buffer, sizeof(uint8_t), size, (FILE *)user_data);
+}
+
+static helix_mp3_io_t default_io =
+{
+    .seek = helix_mp3_seek,
+    .read = helix_mp3_read
+};
+
+int helix_mp3_init(helix_mp3_t *mp3, const helix_mp3_io_t *io)
 {
     /* Sanity check */
-    if ((mp3 == NULL) || (path == NULL)) {
+    if ((mp3 == NULL) || (io == NULL)) {
         return -EINVAL;
     }
 
-    /* Clear decoder context */
+    /* Initialize decoder context */
     memset(mp3, 0, sizeof(*mp3));
+    mp3->io = io;
 
     int err = 0;
     do {
@@ -145,15 +163,8 @@ int helix_mp3_init(helix_mp3_t *mp3, const char *path)
             break;
         }
 
-        /* Open input file */
-        mp3->mp3_fd = fopen(path, "rb");
-        if (mp3->mp3_fd == NULL) {
-            err = -ENOENT;
-            break;
-        }
-
         /* Skip ID3V2 tag */
-        if (helix_mp3_skip_id3v2_tag(mp3->mp3_fd) < 0) {
+        if (helix_mp3_skip_id3v2_tag(mp3) < 0) {
             err = -EIO;
             break;
         }
@@ -166,9 +177,6 @@ int helix_mp3_init(helix_mp3_t *mp3, const char *path)
     } while (0);
 
     if (err) {
-        if (mp3->mp3_fd != NULL) {
-            fclose(mp3->mp3_fd);
-        }
         free(mp3->pcm_buffer);
         free(mp3->mp3_buffer);
         MP3FreeDecoder(mp3->dec);
@@ -176,13 +184,35 @@ int helix_mp3_init(helix_mp3_t *mp3, const char *path)
     return err;  
 }
 
+
+int helix_mp3_init_file(helix_mp3_t *mp3, const char *path)
+{
+    /* Open input file */
+    FILE *fd = fopen(path, "rb");
+    if (fd == NULL) {
+       return -ENOENT;
+    }
+    default_io.user_data = fd;
+
+    /* Initialize decoder */
+    const int err = helix_mp3_init(mp3, &default_io);
+    if (err) {
+        fclose(fd);
+        return err;
+    }
+    return 0;
+}
+
+
 int helix_mp3_deinit(helix_mp3_t *mp3)
 {
     if (mp3 == NULL) {
         return -EINVAL;
     }
 
-    fclose(mp3->mp3_fd);
+    if (mp3->io->read == default_io.read) {
+        fclose((FILE *)mp3->io->user_data);
+    }
     free(mp3->pcm_buffer);
     free(mp3->mp3_buffer);
     MP3FreeDecoder(mp3->dec);

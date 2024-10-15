@@ -1,6 +1,7 @@
 #include <helix_mp3.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <stdio.h>
 
 #define SAMPLES_PER_FRAME 2
 #define PCM_BUFFER_SIZE_SAMPLES (1024 * 32)
@@ -9,7 +10,7 @@
 int main(int argc, char *argv[])
 {
     if (argc != 3) {
-        printf("Usage: ./example_decoder infile.mp3 outfile.raw\n");
+        printf("Usage: %s infile.mp3 outfile.raw\n", argv[0]);
         return -EINVAL;
     }
 
@@ -22,7 +23,7 @@ int main(int argc, char *argv[])
     FILE *out_fd;
 
     /* Initialize decoder */
-    err = helix_mp3_init(&mp3, input_path);
+    err = helix_mp3_init_file(&mp3, input_path);
     if (err) {
         printf("Failed to init decoder for file '%s', error: %d\n", input_path, err);
         return err;

@@ -28,7 +28,7 @@ And so this library was born.
 
 ## API description
 
-See [header file](src/helix_mp3.h) and [example source code](example/example_decode.c).
+See [header file](src/helix_mp3.h) and [example source code](examples/decode/example_decode.c).
 
 ## How to use it in a project
 
@@ -48,33 +48,35 @@ target_link_libraries(<target>
 )
 ```
 
-## Example
+## Examples
 
-Minimal example of using the library can be found [here](example/example_decode.c). This simple utility decodes the provided MP3 file to raw PCM file.
+Minimal example of using the library can be found [here](examples/decode/example_decode.c). This simple utility decodes the provided MP3 file to raw PCM file. 
 
-To compile it, clone the repo and run the following commands:
+The example of using the library with custom stream interface can be found [here](examples/decode_custom_io/example_decode_custom_io.c). This utility does exactly the same job as the minimal example, but using a custom stream interface.
+
+To compile the examples, clone the repo and run the following commands:
 ```
 mkdir -p build
 cd build
-cmake .. -DBUILD_EXAMPLE=1
+cmake .. -DBUILD_EXAMPLES=1
 make
 ```
 
-To use the compiled program, run:
+To use the compiled utilities, run:
 ```
-./example/example_decode <path_to_mp3_file>.mp3 <path_to_output_file>.raw
+./examples/decode/example_decode <path_to_mp3_file>.mp3 <path_to_output_file>.raw
+```
+or:
+```
+./examples/decode_custom_io/example_decode_custom_io <path_to_mp3_file>.mp3 <path_to_output_file>.raw
 ```
 
 After a successful run, you should get an output similar to:
 ```
-./example/example_decode ~/test.mp3 output.raw
+./examples/decode/example_decode ~/test.mp3 output.raw
 
 Decoding '~/test.mp3' to 'output.raw'...
 Reached EOF!
 Done! Decoded 721152 frames, last frame sample rate: 44100Hz, bitrate: 32kbps
 ```
 Output file contains raw 16-bit stereo PCM frames and can be played e.g. with Audacity via Import->Raw data option.
-
-## TODO
-### Add custom stream interface
-For now the library reads data only from file via `stdio.h` filesystem API (`fopen`, `fread` etc.). Adding an interface allowing to provide custom stream operations would make this library more versatile. This is a rather simple thing to do, I just didn't have such need. 

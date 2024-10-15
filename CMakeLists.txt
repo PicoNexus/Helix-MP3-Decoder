@@ -8,7 +8,7 @@ file(GLOB_RECURSE HELIX_MP3_SRCS CONFIGURE_DEPENDS
 
 add_library(helix_mp3 STATIC)
 
-option(BUILD_EXAMPLE "Build example" OFF)
+option(BUILD_EXAMPLES "Build examples" OFF)
 
 target_sources(helix_mp3
     PRIVATE
@@ -27,6 +27,6 @@ target_compile_options(helix_mp3
         -Wno-unused-but-set-variable
 )
 
-if (BUILD_EXAMPLE)
-    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/example)
+if (BUILD_EXAMPLES)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/examples)
 endif ()

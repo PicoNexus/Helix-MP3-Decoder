@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include <stdio.h>
 
 /* Minimum data chunk size containing at least one MP3 frame. Make input buffer twice as big. */
 #define HELIX_MP3_MIN_DATA_CHUNK_SIZE 8192
@@ -13,6 +12,34 @@
 /* Maximum number of samples that can be extracted from one MP3 frame */
 #define HELIX_MP3_MAX_SAMPLES_PER_FRAME (MAX_NCHAN * MAX_NGRAN * MAX_NSAMP)
 
+/** @struct helix_mp3_io_t
+ *  I/O interface for custom stream handling.
+ *
+ *  @var helix_mp3_io_t::seek
+ *      Pointer to custom seek function. Offset will always be
+ *      given from the beginning of the file. The function
+ *      should return 0 on success and non-zero value on failure.
+ *  @var helix_mp3_io_t::read
+ *      Pointer to custom read function. The function should
+ *      return number of bytes read (can be zero) on success
+ *      and zero on failure.
+ *  @var helix_mp3_io_t::user_data
+ *      Pointer to argument that will be passed while invoking
+ *      seek or read. Usually pointer to file descriptor. Can
+ *      be NULL if not needed.
+ */
+typedef struct
+{
+    int (*seek)(void *user_data, int offset);
+    size_t (*read)(void *user_data, void *buffer, size_t size);
+    void *user_data;
+} helix_mp3_io_t;
+
+/** @struct helix_mp3_t
+ *  Struct storing internal context of the decoder.
+ *  Do not access these fields directly.
+ *
+ */
 typedef struct 
 {
     HMP3Decoder dec;
@@ -24,11 +51,24 @@ typedef struct
     size_t current_pcm_frame;
     uint32_t current_sample_rate;
     uint32_t current_bitrate;
-    FILE *mp3_fd;
+    const helix_mp3_io_t *io;
 } helix_mp3_t;
 
 
 /* Public API */
+
+/**
+ * @brief Initializes the decoder using custom I/O callbacks
+ *
+ * Proper opening and closing of the stream should be done
+ * by the user if such operations are required. The stream
+ * should be readable upon calling this function.
+ *
+ * @param mp3 pointer to decoder context
+ * @param io pointer to I/O struct filled with valid I/O function pointers
+ * @return int appropriate errno code on failure, zero on success
+ */
+int helix_mp3_init(helix_mp3_t *mp3, const helix_mp3_io_t *io);
 
 /**
  * @brief Initializes the decoder for a given file
@@ -37,7 +77,7 @@ typedef struct
  * @param path path to MP3 file to decode
  * @return int appropriate errno code on failure, zero on success
  */
-int helix_mp3_init(helix_mp3_t *mp3, const char *path);
+int helix_mp3_init_file(helix_mp3_t *mp3, const char *path);
 
 /**
  * @brief Deinitializes the decoder, freeing all internal resources
