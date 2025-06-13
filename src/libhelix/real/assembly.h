@@ -80,7 +80,7 @@ static ALWAYS_INLINE int MULSHIFT32(int x, int y)
 
 static ALWAYS_INLINE int FASTABS(int x) 
 {
-	int t = 0; /* Really is not necessary to initialiaze only to avoid warning */
+	int t = 0; /* Really is not necessary to initialize only to avoid warning */
 
 	__asm__ __volatile__(
 		"eor %0,%2,%2, asr #31;"
@@ -115,7 +115,7 @@ static ALWAYS_INLINE Word64 MADD64(Word64 sum64, int x, int y)
 	U64 u;
 	u.w64 = sum64;
 
-	__asm__ __volatile__ ("smlal %0,%1,%2,%3" : "+&r" (u.r.lo32), "+&r" (u.r.hi32) : "r" (x), "r" (y));
+	__asm__ __volatile__("smlal %0,%1,%2,%3" : "+&r" (u.r.lo32), "+&r" (u.r.hi32) : "r" (x), "r" (y));
 
 	return u.w64;
 }
@@ -158,6 +158,9 @@ static ALWAYS_INLINE int FASTABS(int x)
 
 static ALWAYS_INLINE int CLZ(int x)
 {
+#if defined(__GNUC__)
+	return __builtin_clz(x);
+#else
 	int count;
 
 	if (x == 0) {
@@ -171,6 +174,7 @@ static ALWAYS_INLINE int CLZ(int x)
 	} 
 
 	return count;
+#endif
 }
 
 static ALWAYS_INLINE Word64 MADD64(Word64 sum, int a, int b)
@@ -185,6 +189,67 @@ static ALWAYS_INLINE Word64 MADD64(Word64 sum, int a, int b)
 	result += result_lo;
 	result += sum;
 	return result;
+}
+
+static ALWAYS_INLINE Word64 SHL64(Word64 x, int n)
+{
+	return x << n;
+}
+
+static ALWAYS_INLINE Word64 SAR64(Word64 x, int n)
+{
+	return x >> n;
+}
+
+#elif defined(__xtensa__)
+
+#pragma message("Using optimizations for Xtensa")
+
+typedef long long Word64;
+
+static ALWAYS_INLINE int MULSHIFT32(int x, int y)
+{
+	int result;
+
+	__asm__ __volatile__("mulsh %0, %1, %2" : "=r" (result) : "r" (x), "r" (y));
+	
+	return result;
+}
+
+static ALWAYS_INLINE int FASTABS(int x)
+{
+	int result;
+
+	__asm__ __volatile__("abs %0, %1" : "=r" (result) : "r" (x));
+
+	return result;
+}
+
+static ALWAYS_INLINE int CLZ(int x)
+{
+#if defined(__GNUC__)
+	return __builtin_clz(x);
+#else
+	int count;
+
+	if (x == 0) {
+		return (sizeof(int) * 8);
+	}
+
+	count = 0;
+	while (!(x & 0x80000000)) {
+		count++;
+		x <<= 1;
+	} 
+
+	return count;
+#endif
+}
+
+static ALWAYS_INLINE Word64 MADD64(Word64 sum, int a, int b)
+{
+	sum += (Word64)a * (Word64)b;
+	return sum;
 }
 
 static ALWAYS_INLINE Word64 SHL64(Word64 x, int n)
@@ -217,6 +282,9 @@ static ALWAYS_INLINE int FASTABS(int x)
 
 static ALWAYS_INLINE int CLZ(int x)
 {
+#if defined(__GNUC__)
+	return __builtin_clz(x);
+#else
 	int count;
 
 	if (x == 0) {
@@ -230,6 +298,7 @@ static ALWAYS_INLINE int CLZ(int x)
 	} 
 
 	return count;
+#endif
 }
 
 static ALWAYS_INLINE Word64 MADD64(Word64 sum, int a, int b)
